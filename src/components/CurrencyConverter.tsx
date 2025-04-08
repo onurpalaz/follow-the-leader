@@ -194,14 +194,14 @@ const CurrencyConverter = ({
                 <p className="text-2xl font-bold">
                   {isLoading ? (
                     <span className="animate-pulse">Loading...</span>
-                  ) : convertedAmount !== null ? (
+                  ) : convertedAmount !== null && !isNaN(convertedAmount) ? (
                     `${parseFloat(amount) || 0} ${fromCurrency} = ${convertedAmount.toFixed(4)} ${toCurrency}`
                   ) : (
                     "Enter an amount to convert"
                   )}
                 </p>
               </div>
-              {rate !== null && !isLoading && (
+              {rate !== null && !isNaN(rate) && !isLoading && (
                 <p className="text-xs text-muted-foreground">
                   1 {fromCurrency} = {rate.toFixed(6)} {toCurrency}
                 </p>
