@@ -10,6 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  convertCurrency,
+  getLatestRates,
+} from "@/services/exchangeRateService";
 
 interface CurrencyConverterProps {
   currencies?: string[];
@@ -26,24 +30,62 @@ const CurrencyConverter = ({
   const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
   const [rate, setRate] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // In a real implementation, this would fetch the actual conversion rate
-    // from the exchangerate.host API
     const fetchConversionRate = async () => {
       setIsLoading(true);
+      setError(null);
       try {
-        // Simulate API call with timeout
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        // Mock conversion rate - in real app would come from API
-        const mockRate = 1.08; // Example EUR/USD rate
-        setRate(mockRate);
-
         const numAmount = parseFloat(amount) || 0;
-        setConvertedAmount(numAmount * mockRate);
-        onConvert(fromCurrency, toCurrency, numAmount);
+
+        // First try to use the convert endpoint
+        try {
+          const result = await convertCurrency(
+            fromCurrency,
+            toCurrency,
+            numAmount,
+          );
+          if (result.success) {
+            setRate(result.info.rate);
+            setConvertedAmount(result.result);
+            onConvert(fromCurrency, toCurrency, numAmount);
+            setIsLoading(false);
+            return;
+          }
+        } catch (conversionError) {
+          console.log(
+            "Direct conversion failed, falling back to rates",
+            conversionError,
+          );
+          // Continue to fallback method
+        }
+
+        // Fallback: get latest rates and calculate manually
+        const ratesData = await getLatestRates(fromCurrency);
+        if (ratesData.success) {
+          const targetRate = ratesData.quotes[`${fromCurrency}${toCurrency}`];
+          if (targetRate) {
+            setRate(targetRate);
+            setConvertedAmount(numAmount * targetRate);
+            onConvert(fromCurrency, toCurrency, numAmount);
+          } else {
+            throw new Error(
+              `Rate not available for ${fromCurrency} to ${toCurrency}`,
+            );
+          }
+        } else {
+          throw new Error(ratesData.error?.info || "Failed to fetch rates");
+        }
       } catch (error) {
         console.error("Error fetching conversion rate:", error);
+        setError("Unable to fetch current rates. Using fallback data.");
+
+        // Fallback to mock data if API fails
+        const mockRate = 1.08;
+        setRate(mockRate);
+        const numAmount = parseFloat(amount) || 0;
+        setConvertedAmount(numAmount * mockRate);
       } finally {
         setIsLoading(false);
       }
@@ -164,6 +206,7 @@ const CurrencyConverter = ({
                   1 {fromCurrency} = {rate.toFixed(6)} {toCurrency}
                 </p>
               )}
+              {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
           </div>
         </div>
